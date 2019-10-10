@@ -1,10 +1,7 @@
 package proxy
 
 import (
-	"bufio"
 	"net"
-	"sync/atomic"
-	"time"
 )
 
 func Loop(local, forward, duplicate *Connection, done chan<- bool) {
