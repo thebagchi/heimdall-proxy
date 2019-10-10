@@ -7,8 +7,12 @@ import (
 	"time"
 )
 
-// Connection object
-// active: 0/1 0 = active 1 = inactive
+// A Connection represents object that holds a net.Conn
+// active:    0/1 0 = active 1 = inactive
+// reader:    read from net.Conn
+// writer:    writer into net.Conn
+// valid:     underlying connection is valid
+// mandatory: connection is mandatory
 type Connection struct {
 	net.Conn
 	active    int32
@@ -18,16 +22,28 @@ type Connection struct {
 	mandatory bool
 }
 
+func (conn *Connection) Close() {
+	_ = conn.Conn.Close()
+}
+
+func (conn *Connection) Read(buffer []byte) (int, error) {
+	count, err := conn.reader.Read(buffer)
+	if nil != err {
+		atomic.CompareAndSwapInt32(&conn.active, 0, 1)
+	}
+	return count, err
+}
+
+func (conn *Connection) Write(buffer []byte) (int, error) {
+	count, err := conn.writer.Write(buffer)
+	if nil != err {
+		_ = conn.writer.Flush()
+	}
+	return count, err
+}
+
 func (conn *Connection) IsActive() bool {
 	return atomic.LoadInt32(&conn.active) == 0
-}
-
-func (conn *Connection) Deactivate() bool {
-	return atomic.CompareAndSwapInt32(&conn.active, 0, 1)
-}
-
-func (conn *Connection) Connection() net.Conn {
-	return conn.Conn
 }
 
 func (conn *Connection) Connected() bool {
@@ -40,14 +56,6 @@ func (conn *Connection) Valid() bool {
 
 func (conn *Connection) Mandatory() bool {
 	return conn.mandatory
-}
-
-func (conn *Connection) Reader() *bufio.Reader {
-	return conn.reader
-}
-
-func (conn *Connection) Writer() *bufio.Writer {
-	return conn.writer
 }
 
 // Wrap net.Conn to Connection object
@@ -73,5 +81,4 @@ func NewConnection(connection net.Conn, mandatory bool) *Connection {
 		valid:     true,
 		mandatory: mandatory,
 	}
-
 }
